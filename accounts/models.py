@@ -153,5 +153,6 @@ class User(AbstractUser):
     types = ArrayField(
         models.CharField(max_length=10, choices=TypesChoices.choices),
         size=4,
+        null=True,
         blank=True,
     )

@@ -69,6 +69,26 @@ class UserManager(BaseUserManager):
         return self.none()
 
 
+class TeacherManager(models.Manager):
+    def get_queryset(self, *args, **kwargs):
+        return super().get_queryset(*args, **kwargs).filter(types__contains=[User.TypesChoices.TEACHER])
+
+
+class StudentManager(models.Manager):
+    def get_queryset(self, *args, **kwargs):
+        return super().get_queryset(*args, **kwargs).filter(types__contains=[User.TypesChoices.STUDENT])
+
+
+class GuardianManager(models.Manager):
+    def get_queryset(self, *args, **kwargs):
+        return super().get_queryset(*args, **kwargs).filter(types__contains=[User.TypesChoices.GUARDIAN])
+
+
+class CommitteeManager(models.Manager):
+    def get_queryset(self, *args, **kwargs):
+        return super().get_queryset(*args, **kwargs).filter(types__contains=[User.TypesChoices.COMMITTEE])
+
+
 class AbstractUser(AbstractBaseUser, PermissionsMixin):
     """
     An abstract base class implementing a fully featured User model with
@@ -156,3 +176,47 @@ class User(AbstractUser):
         null=True,
         blank=True,
     )
+
+
+class Teacher(User):
+    types = [User.TypesChoices.TEACHER]
+    objects = TeacherManager()
+    @property
+    def more(self):
+        pass
+    
+    class Meta:
+        proxy = True
+
+
+class Student(User):
+    types = [User.TypesChoices.STUDENT]
+    objects = StudentManager()
+    @property
+    def more(self):
+        pass
+    
+    class Meta:
+        proxy = True
+
+
+class Guardian(User):
+    types = [User.TypesChoices.GUARDIAN]
+    objects = GuardianManager()
+    @property
+    def more(self):
+        pass
+    
+    class Meta:
+        proxy = True
+
+
+class Committee(User):
+    types = [User.TypesChoices.COMMITTEE]
+    objects = CommitteeManager()
+    @property
+    def more(self):
+        pass
+    
+    class Meta:
+        proxy = True

@@ -181,6 +181,7 @@ class User(AbstractUser):
 class Teacher(User):
     types = [User.TypesChoices.TEACHER]
     objects = TeacherManager()
+
     @property
     def more(self):
         pass
@@ -192,6 +193,7 @@ class Teacher(User):
 class Student(User):
     types = [User.TypesChoices.STUDENT]
     objects = StudentManager()
+
     @property
     def more(self):
         pass
@@ -203,6 +205,7 @@ class Student(User):
 class Guardian(User):
     types = [User.TypesChoices.GUARDIAN]
     objects = GuardianManager()
+
     @property
     def more(self):
         pass
@@ -214,6 +217,7 @@ class Guardian(User):
 class Committee(User):
     types = [User.TypesChoices.COMMITTEE]
     objects = CommitteeManager()
+    
     @property
     def more(self):
         pass

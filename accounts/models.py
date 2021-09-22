@@ -1,7 +1,7 @@
 from django.contrib import auth
 from django.contrib.auth.models import (AbstractBaseUser, BaseUserManager,
                                         PermissionsMixin)
-# from django.contrib.postgres.fields import ArrayField
+from django.contrib.postgres.fields import ArrayField
 from django.core.mail import send_mail
 from django.db import models
 from django.utils import timezone
@@ -144,4 +144,14 @@ class User(AbstractUser):
 
     Username and password are required. Other fields are optional.
     """
-    pass
+    class TypesChoices(models.TextChoices):
+        TEACHER = 'TEACHER', _('Teacher')
+        STUDENT = 'STUDENT', _('Student')
+        GUARDIAN = 'GUARDIAN', _('Guardian')
+        COMMITTEE = 'COMMITTEE', _('Committee')
+
+    types = ArrayField(
+        models.CharField(max_length=10, choices=TypesChoices.choices),
+        size=4,
+        blank=True,
+    )

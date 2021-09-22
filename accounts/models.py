@@ -178,16 +178,26 @@ class User(AbstractUser):
     )
 
 
+class TeacherMore(models.Model):
+    designation = models.CharField(max_length=20, null=True, blank=True)
+    user = models.OneToOneField(User, related_name='teachermore', on_delete=models.CASCADE)
+
+
 class Teacher(User):
     types = [User.TypesChoices.TEACHER]
     objects = TeacherManager()
 
     @property
     def more(self):
-        pass
+        return self.teachermore
     
     class Meta:
         proxy = True
+
+
+class StudentMore(models.Model):
+    level = models.CharField(max_length=20, null=True, blank=True)
+    user = models.OneToOneField(User, related_name='studentmore', on_delete=models.CASCADE)
 
 
 class Student(User):
@@ -196,10 +206,15 @@ class Student(User):
 
     @property
     def more(self):
-        pass
+        self.studentmore
     
     class Meta:
         proxy = True
+
+
+class GuardianMore(models.Model):
+    occupation = models.CharField(max_length=50, null=True, blank=True)
+    user = models.OneToOneField(User, related_name='guardianmore', on_delete=models.CASCADE)
 
 
 class Guardian(User):
@@ -208,10 +223,15 @@ class Guardian(User):
 
     @property
     def more(self):
-        pass
+        return self.guardianmore
     
     class Meta:
         proxy = True
+
+
+class CommitteeMore(models.Model):
+    designation = models.CharField(max_length=20, null=True, blank=True)
+    user = models.OneToOneField(User, related_name='committeemore', on_delete=models.CASCADE)
 
 
 class Committee(User):
@@ -220,7 +240,7 @@ class Committee(User):
     
     @property
     def more(self):
-        pass
+        return self.committeemore
     
     class Meta:
         proxy = True

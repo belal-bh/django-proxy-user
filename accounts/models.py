@@ -4,6 +4,8 @@ from django.contrib.auth.models import (AbstractBaseUser, BaseUserManager,
 from django.contrib.postgres.fields import ArrayField
 from django.core.mail import send_mail
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -244,3 +246,32 @@ class Committee(User):
     
     class Meta:
         proxy = True
+
+
+@receiver(post_save, sender=User)
+def post_save_user_handler(sender, instance, created, *args, **kwargs):
+    """
+    post_save handler of User model.
+    """
+    # print("inside post_save")
+    if created and instance:
+        # user has been created
+        # create corresponding `types` related models (i.e. TeacherMore, StudentMore) if needed
+        if instance.types and len(instance.types) > 0:
+            # print(f'len = {len(instance.types)}')
+            if instance.TypesChoices.TEACHER in instance.types:
+                # create TeacherMore
+                from accounts.models import TeacherMore
+                _ = TeacherMore.objects.create(user=instance)
+            if instance.TypesChoices.STUDENT in instance.types:
+                # create StudentMore
+                from accounts.models import StudentMore
+                _ = StudentMore.objects.create(user=instance)
+            if instance.TypesChoices.GUARDIAN in instance.types:
+                # create GuardianMore
+                from accounts.models import GuardianMore
+                _ = GuardianMore.objects.create(user=instance)
+            if instance.TypesChoices.COMMITTEE in instance.types:
+                # create CommitteeMore
+                from accounts.models import CommitteeMore
+                _ = CommitteeMore.objects.create(user=instance)

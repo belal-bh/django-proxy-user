@@ -6,3 +6,6 @@ psycopg2-binary
 # packages for environment variable
 python-decouple
 dj-database-url
+
+# packages for utilies
+django-model-utils

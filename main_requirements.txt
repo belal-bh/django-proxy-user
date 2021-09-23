@@ -9,3 +9,6 @@ dj-database-url
 
 # packages for utilies
 django-model-utils
+
+# packages for django extensions features
+django-extensions

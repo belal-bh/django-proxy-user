@@ -8,6 +8,8 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from model_utils import FieldTracker
+from model_utils.models import TimeStampedModel
 
 from .validators import UnicodeUsernameValidator
 
@@ -178,9 +180,14 @@ class User(AbstractUser):
         null=True,
         blank=True,
     )
+    modified = models.DateTimeField(auto_now=True, auto_now_add=False)
+
+    # to track changes in model fields
+    types_tracker = FieldTracker(fields=['types'])
 
 
-class TeacherMore(models.Model):
+
+class TeacherMore(TimeStampedModel):
     designation = models.CharField(max_length=20, null=True, blank=True)
     user = models.OneToOneField(User, related_name='teachermore', on_delete=models.CASCADE)
 
@@ -197,7 +204,7 @@ class Teacher(User):
         proxy = True
 
 
-class StudentMore(models.Model):
+class StudentMore(TimeStampedModel):
     level = models.CharField(max_length=20, null=True, blank=True)
     user = models.OneToOneField(User, related_name='studentmore', on_delete=models.CASCADE)
 
@@ -214,7 +221,7 @@ class Student(User):
         proxy = True
 
 
-class GuardianMore(models.Model):
+class GuardianMore(TimeStampedModel):
     occupation = models.CharField(max_length=50, null=True, blank=True)
     user = models.OneToOneField(User, related_name='guardianmore', on_delete=models.CASCADE)
 
@@ -231,7 +238,7 @@ class Guardian(User):
         proxy = True
 
 
-class CommitteeMore(models.Model):
+class CommitteeMore(TimeStampedModel):
     designation = models.CharField(max_length=20, null=True, blank=True)
     user = models.OneToOneField(User, related_name='committeemore', on_delete=models.CASCADE)
 

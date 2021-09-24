@@ -15,7 +15,26 @@ from .validators import UnicodeUsernameValidator
 
 
 class UserManager(BaseUserManager):
+    """
+    Customized Manager for custom User model with additional fields and features.
+    """
     use_in_migrations = True
+    
+    @classmethod
+    def normalize_types(cls, types: list):
+        """
+        Normalize the types list by sorting and removing duplicate items.
+        """
+        if not isinstance(types, (list, set)):
+            types = list()
+        elif isinstance(types, set):
+            types = list(types)
+        from accounts.models import User
+        valid_types_set = set([t for t, _ in User.TypesChoices.choices])
+        types_set_validated = valid_types_set.intersection(set(types))
+        types = list(types_set_validated)
+        types.sort()
+        return types
 
     def _create_user(self, username, email, password, **extra_fields):
         """
@@ -177,14 +196,23 @@ class User(AbstractUser):
     types = ArrayField(
         models.CharField(max_length=10, choices=TypesChoices.choices),
         size=4,
-        null=True,
+        default=list, # default value as an empty list
         blank=True,
     )
     modified = models.DateTimeField(auto_now=True, auto_now_add=False)
 
     # to track changes in model fields
     types_tracker = FieldTracker(fields=['types'])
-
+    
+    def clean(self):
+        super().clean()
+        self.types = self.__class__.objects.normalize_types(self.types)
+    
+    def save(self, *args, **kwargs):
+        # normalize types before calling super().save()
+        # otherwise post_save signal will be called before normalize types
+        self.types = self.__class__.objects.normalize_types(self.types)
+        super().save(*args, **kwargs)
 
 
 class TeacherMore(TimeStampedModel):
@@ -265,20 +293,82 @@ def post_save_user_handler(sender, instance, created, *args, **kwargs):
         # user has been created
         # create corresponding `types` related models (i.e. TeacherMore, StudentMore) if needed
         if instance.types and len(instance.types) > 0:
-            # print(f'len = {len(instance.types)}')
+            # print(f"instance.types (created)={instance.types}")
+            from accounts.models import (CommitteeMore, GuardianMore,
+                                         StudentMore, TeacherMore)
             if instance.TypesChoices.TEACHER in instance.types:
                 # create TeacherMore
-                from accounts.models import TeacherMore
                 _ = TeacherMore.objects.create(user=instance)
             if instance.TypesChoices.STUDENT in instance.types:
                 # create StudentMore
-                from accounts.models import StudentMore
                 _ = StudentMore.objects.create(user=instance)
             if instance.TypesChoices.GUARDIAN in instance.types:
                 # create GuardianMore
-                from accounts.models import GuardianMore
                 _ = GuardianMore.objects.create(user=instance)
             if instance.TypesChoices.COMMITTEE in instance.types:
                 # create CommitteeMore
-                from accounts.models import CommitteeMore
                 _ = CommitteeMore.objects.create(user=instance)
+        
+    elif instance and instance.types_tracker.has_changed('types'):
+        # print(f"instance.types (chnaged)={instance.types}")
+        from accounts.models import (CommitteeMore, GuardianMore,
+                                         StudentMore, TeacherMore)
+        # user types has been changed
+        # create corresponding `types` related models (i.e. TeacherMore, StudentMore) if needed
+        previous_types_set = set(instance.types_tracker.previous('types') if instance.types_tracker.previous('types') else list())
+        current_types_set = set(instance.types if instance.types else list())
+        removed_types_set = previous_types_set - current_types_set
+        added_types_set = current_types_set - previous_types_set
+        # print(f"previous_types_set={previous_types_set}, current_types_set={current_types_set}, \
+        #     removed_types_set={removed_types_set}, added_types_set={added_types_set}")
+        
+        # create or update (if needed. i.e. change active=True if already exist) 
+        # corresponding `types` (added_types_set) related models
+        if len(added_types_set) > 0:
+            # print(f"adding added_types_set:{added_types_set}")
+            for user_type in added_types_set:
+                if user_type == instance.TypesChoices.TEACHER:
+                    # create or update TeacherMore
+                    _ = TeacherMore.objects.update_or_create(user=instance)
+                elif user_type == instance.TypesChoices.STUDENT:
+                    # create or update StudentMore
+                    _ = StudentMore.objects.update_or_create(user=instance)
+                elif user_type == instance.TypesChoices.GUARDIAN:
+                    # create or update GuardianMore
+                    _ = GuardianMore.objects.update_or_create(user=instance)
+                elif user_type == instance.TypesChoices.COMMITTEE:
+                    # create or update CommitteeMore
+                    _ = CommitteeMore.objects.update_or_create(user=instance)
+        
+        # update (if exist) corresponding `types` (removed_types_set) related models
+        if len(removed_types_set) > 0:
+            # print(f"removing removed_types_set:{removed_types_set}")
+            for user_type in removed_types_set:
+                if user_type == instance.TypesChoices.TEACHER:
+                    try:
+                        # check obj of user_type exist
+                        obj = TeacherMore.objects.get(user=instance)
+                        # do something of this obj if needed, i.e. update active=False
+                    except TeacherMore.DoesNotExist:
+                        pass
+                elif user_type == instance.TypesChoices.STUDENT:
+                    try:
+                        # check obj of user_type exist
+                        obj = StudentMore.objects.get(user=instance)
+                        # do something of this obj if needed, i.e. update active=False
+                    except StudentMore.DoesNotExist:
+                        pass
+                elif user_type == instance.TypesChoices.GUARDIAN:
+                    try:
+                        # check obj of user_type exist
+                        obj = GuardianMore.objects.get(user=instance)
+                        # do something of this obj if needed, i.e. update active=False
+                    except GuardianMore.DoesNotExist:
+                        pass
+                elif user_type == instance.TypesChoices.COMMITTEE:
+                    try:
+                        # check obj of user_type exist
+                        obj = CommitteeMore.objects.get(user=instance)
+                        # do something of this obj if needed, i.e. update active=False
+                    except CommitteeMore.DoesNotExist:
+                        pass

@@ -112,6 +112,13 @@ class CommitteeManager(models.Manager):
         return super().get_queryset(*args, **kwargs).filter(types__contains=[User.TypesChoices.COMMITTEE])
 
 
+
+class StaffManager(models.Manager):
+    def get_queryset(self, *args, **kwargs):
+        return super().get_queryset(*args, **kwargs).filter(types__contains=[User.TypesChoices.STAFF])
+
+
+
 class AbstractUser(AbstractBaseUser, PermissionsMixin):
     """
     An abstract base class implementing a fully featured User model with
@@ -188,14 +195,26 @@ class User(AbstractUser):
     Username and password are required. Other fields are optional.
     """
     class TypesChoices(models.TextChoices):
+        """
+        This choces for `types` field of User Model.
+        NOTE: Please update `types` field's `size` parameter according to
+              the number of choices.
+        """
         TEACHER = 'TEACHER', _('Teacher')
         STUDENT = 'STUDENT', _('Student')
         GUARDIAN = 'GUARDIAN', _('Guardian')
         COMMITTEE = 'COMMITTEE', _('Committee')
+        STAFF = 'STAFF', _('Staff')
 
+    # types is a set of User Type
+    # Every User Type has it's corresponding <User Type>More model 
+    # with OneToOne relationship
+    # It's a database specific field.
+    # ArrayField is available only `Postgres` database
+    # It will not work if you change different database istead of `Postgres` database
     types = ArrayField(
         models.CharField(max_length=10, choices=TypesChoices.choices),
-        size=4,
+        size=5, # update size whenever new TypesChoices added
         default=list, # default value as an empty list
         blank=True,
     )
@@ -283,6 +302,24 @@ class Committee(User):
         proxy = True
 
 
+
+class StaffMore(models.Model):
+    user = models.OneToOneField(User, related_name='staffmore', on_delete=models.CASCADE)
+    designation = models.CharField(max_length=20, null=True, blank=True)
+
+
+class Staff(User):
+    types =[User.TypesChoices.STAFF]
+    objects = StaffManager()
+
+    @property
+    def more(self):
+        return self.staffmore
+    
+    class Meta:
+        proxy = True
+
+
 @receiver(post_save, sender=User)
 def post_save_user_handler(sender, instance, created, *args, **kwargs):
     """
@@ -295,7 +332,7 @@ def post_save_user_handler(sender, instance, created, *args, **kwargs):
         if instance.types and len(instance.types) > 0:
             # print(f"instance.types (created)={instance.types}")
             from accounts.models import (CommitteeMore, GuardianMore,
-                                         StudentMore, TeacherMore)
+                                         StudentMore, TeacherMore, StaffMore)
             if instance.TypesChoices.TEACHER in instance.types:
                 # create TeacherMore
                 _ = TeacherMore.objects.create(user=instance)
@@ -308,11 +345,14 @@ def post_save_user_handler(sender, instance, created, *args, **kwargs):
             if instance.TypesChoices.COMMITTEE in instance.types:
                 # create CommitteeMore
                 _ = CommitteeMore.objects.create(user=instance)
+            if instance.TypesChoices.STAFF in instance.types:
+                # create StaffMore
+                _ = StaffMore.objects.create(user=instance)
         
     elif instance and instance.types_tracker.has_changed('types'):
         # print(f"instance.types (chnaged)={instance.types}")
         from accounts.models import (CommitteeMore, GuardianMore,
-                                         StudentMore, TeacherMore)
+                                         StudentMore, TeacherMore, StaffMore)
         # user types has been changed
         # create corresponding `types` related models (i.e. TeacherMore, StudentMore) if needed
         previous_types_set = set(instance.types_tracker.previous('types') if instance.types_tracker.previous('types') else list())
@@ -339,7 +379,10 @@ def post_save_user_handler(sender, instance, created, *args, **kwargs):
                 elif user_type == instance.TypesChoices.COMMITTEE:
                     # create or update CommitteeMore
                     _ = CommitteeMore.objects.update_or_create(user=instance)
-        
+                elif user_type == instance.TypesChoices.STAFF:
+                    # create or update StaffMore
+                    _ = StaffMore.objects.update_or_create(user=instance)
+                
         # update (if exist) corresponding `types` (removed_types_set) related models
         if len(removed_types_set) > 0:
             # print(f"removing removed_types_set:{removed_types_set}")
@@ -371,4 +414,11 @@ def post_save_user_handler(sender, instance, created, *args, **kwargs):
                         obj = CommitteeMore.objects.get(user=instance)
                         # do something of this obj if needed, i.e. update active=False
                     except CommitteeMore.DoesNotExist:
+                        pass
+                elif user_type == instance.TypesChoices.STAFF:
+                    try:
+                        # check obj of user_type exist
+                        obj = StaffMore.objects.get(user=instance)
+                        # do something of this obj if needed, i.e. update active=False
+                    except StaffMore.DoesNotExist:
                         pass

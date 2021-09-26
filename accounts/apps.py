@@ -4,15 +4,9 @@ from django.db.models.signals import post_save
 class AccountsConfig(AppConfig):
     name = 'accounts'
 
-    def ready(self):
-        # In this section post_save_user_handler not working
-        # So i put this section at accounts.models.py
-        # print("inside ready...")
-        # from .signals import post_save_user_handler
-        # # from django.contrib.auth import get_user_model
-        # post_save.connect(
-        #     post_save_user_handler,
-        #     sender='app_label.User',
-        #     dispatch_uid='accounts.signals.post_save_user_handler'
-        # )
-        pass
+    # def ready(self):
+    #     # singal did not work inside ready function for accounts.User model
+    #     # exact reason don't know
+    #     # but work inside accounts.models.py file
+    #     # currently all signals of accounts app inside accounts.models.py file
+    #     pass

@@ -14,12 +14,11 @@ from model_utils.models import TimeStampedModel
 from .validators import UnicodeUsernameValidator
 
 
-class UserManager(BaseUserManager):
+class BaseCommonUserManager(BaseUserManager):
     """
-    Customized Manager for custom User model with additional fields and features.
+    Customized Common Manager for custom User model of all types with additional fields and features.
     """
-    use_in_migrations = True
-    
+
     @classmethod
     def normalize_types(cls, types: list):
         """
@@ -40,6 +39,7 @@ class UserManager(BaseUserManager):
         """
         Create and save a user with the given username, email, and password.
         """
+        # print(f"inside BaseCommonUserManager._create_user. {self.__class__}")
         if not username:
             raise ValueError('The given username must be set')
         email = self.normalize_email(email)
@@ -50,22 +50,13 @@ class UserManager(BaseUserManager):
         return user
 
     def create_user(self, username, email=None, password=None, **extra_fields):
+        # print(f"inside BaseCommonUserManager.create_user. {self.__class__}")
         extra_fields.setdefault('is_staff', False)
         extra_fields.setdefault('is_superuser', False)
         return self._create_user(username, email, password, **extra_fields)
 
-    def create_superuser(self, username, email=None, password=None, **extra_fields):
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_superuser', True)
-
-        if extra_fields.get('is_staff') is not True:
-            raise ValueError('Superuser must have is_staff=True.')
-        if extra_fields.get('is_superuser') is not True:
-            raise ValueError('Superuser must have is_superuser=True.')
-
-        return self._create_user(username, email, password, **extra_fields)
-
     def with_perm(self, perm, is_active=True, include_superusers=True, backend=None, obj=None):
+        # print(f"inside BaseCommonUserManager.with_perm. {self.__class__}")
         if backend is None:
             backends = auth._get_backends(return_tuples=True)
             if len(backends) == 1:
@@ -92,31 +83,48 @@ class UserManager(BaseUserManager):
         return self.none()
 
 
-class TeacherManager(models.Manager):
+class UserManager(BaseCommonUserManager):
+    """
+    Customized Manager for custom User model with additional fields and features.
+    """
+    use_in_migrations = True
+
+    def create_superuser(self, username, email=None, password=None, **extra_fields):
+        # print(f"inside UserManager.create_superuser. {self.__class__}")
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True.')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True.')
+
+        return self._create_user(username, email, password, **extra_fields)
+
+
+class TeacherManager(BaseCommonUserManager):
     def get_queryset(self, *args, **kwargs):
         return super().get_queryset(*args, **kwargs).filter(types__contains=[User.TypesChoices.TEACHER])
 
 
-class StudentManager(models.Manager):
+class StudentManager(BaseCommonUserManager):
     def get_queryset(self, *args, **kwargs):
         return super().get_queryset(*args, **kwargs).filter(types__contains=[User.TypesChoices.STUDENT])
 
 
-class GuardianManager(models.Manager):
+class GuardianManager(BaseCommonUserManager):
     def get_queryset(self, *args, **kwargs):
         return super().get_queryset(*args, **kwargs).filter(types__contains=[User.TypesChoices.GUARDIAN])
 
 
-class CommitteeManager(models.Manager):
+class CommitteeManager(BaseCommonUserManager):
     def get_queryset(self, *args, **kwargs):
         return super().get_queryset(*args, **kwargs).filter(types__contains=[User.TypesChoices.COMMITTEE])
 
 
-
-class StaffManager(models.Manager):
+class StaffManager(BaseCommonUserManager):
     def get_queryset(self, *args, **kwargs):
         return super().get_queryset(*args, **kwargs).filter(types__contains=[User.TypesChoices.STAFF])
-
 
 
 class AbstractUser(AbstractBaseUser, PermissionsMixin):
@@ -240,15 +248,41 @@ class TeacherMore(TimeStampedModel):
 
 
 class Teacher(User):
-    types = [User.TypesChoices.TEACHER]
+    # store corresponding choice (User.TypesChoices instance) as a private property
+    # it will be used in many place to maintain some constraints
+    # _user_type = User.TypesChoices.TEACHER
+
     objects = TeacherManager()
 
     @property
     def more(self):
         return self.teachermore
     
+    @property
+    def user_type(self):
+        # return corresponding choice (User.TypesChoices instance) as a private property
+        # it will be used in many place to maintain some constraints
+        return User.TypesChoices.TEACHER
+    
+    def _auto_add_current_user_type(self):
+        # add `_user_type` in `types` (if not exist in `types`) before calling super().save()
+        if not self.types:
+            self.types = [self.TypesChoices.TEACHER.value]
+        elif isinstance(self.types, (list, set)) and self.TypesChoices.TEACHER.value not in self.types:
+            self.types = list(set(self.types) + set([self.TypesChoices.TEACHER.value]))
+    
     class Meta:
         proxy = True
+    
+    def save(self, *args, **kwargs):
+        # add Teacher types before calling super().save()
+        # e.g. Teacher.objects.create(username='username') without types will ignore Teacher type
+        # so add Teacher type befor saving
+        if not self.types:
+            self.types = [self.TypesChoices.TEACHER.value]
+        elif isinstance(self.types, (list, set)) and self.TypesChoices.TEACHER.value not in self.types:
+            self.types = list(set(self.types) + set([self.TypesChoices.TEACHER.value]))
+        super().save(*args, **kwargs)
 
 
 class StudentMore(TimeStampedModel):
@@ -302,7 +336,6 @@ class Committee(User):
         proxy = True
 
 
-
 class StaffMore(models.Model):
     user = models.OneToOneField(User, related_name='staffmore', on_delete=models.CASCADE)
     designation = models.CharField(max_length=20, null=True, blank=True)
@@ -320,17 +353,24 @@ class Staff(User):
         proxy = True
 
 
+# update this when you update User.TypesChoices
+# so corresponding User Type's More Object create properly
 @receiver(post_save, sender=User)
-def post_save_user_handler(sender, instance, created, *args, **kwargs):
+@receiver(post_save, sender=Teacher)
+@receiver(post_save, sender=Student)
+@receiver(post_save, sender=Guardian)
+@receiver(post_save, sender=Committee)
+@receiver(post_save, sender=Staff)
+def post_save_user_types_handler(sender, instance, created, *args, **kwargs):
     """
     post_save handler of User model.
     """
-    # print("inside post_save")
+    print("inside post_save")
     if created and instance:
         # user has been created
         # create corresponding `types` related models (i.e. TeacherMore, StudentMore) if needed
         if instance.types and len(instance.types) > 0:
-            # print(f"instance.types (created)={instance.types}")
+            print(f"instance.types (created)={instance.types}")
             from accounts.models import (CommitteeMore, GuardianMore,
                                          StudentMore, TeacherMore, StaffMore)
             if instance.TypesChoices.TEACHER in instance.types:
@@ -350,7 +390,7 @@ def post_save_user_handler(sender, instance, created, *args, **kwargs):
                 _ = StaffMore.objects.create(user=instance)
         
     elif instance and instance.types_tracker.has_changed('types'):
-        # print(f"instance.types (chnaged)={instance.types}")
+        print(f"instance.types (chnaged)={instance.types}")
         from accounts.models import (CommitteeMore, GuardianMore,
                                          StudentMore, TeacherMore, StaffMore)
         # user types has been changed
@@ -365,7 +405,7 @@ def post_save_user_handler(sender, instance, created, *args, **kwargs):
         # create or update (if needed. i.e. change active=True if already exist) 
         # corresponding `types` (added_types_set) related models
         if len(added_types_set) > 0:
-            # print(f"adding added_types_set:{added_types_set}")
+            print(f"adding added_types_set:{added_types_set}")
             for user_type in added_types_set:
                 if user_type == instance.TypesChoices.TEACHER:
                     # create or update TeacherMore
@@ -385,7 +425,7 @@ def post_save_user_handler(sender, instance, created, *args, **kwargs):
                 
         # update (if exist) corresponding `types` (removed_types_set) related models
         if len(removed_types_set) > 0:
-            # print(f"removing removed_types_set:{removed_types_set}")
+            print(f"removing removed_types_set:{removed_types_set}")
             for user_type in removed_types_set:
                 if user_type == instance.TypesChoices.TEACHER:
                     try:

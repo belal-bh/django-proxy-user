@@ -300,7 +300,7 @@ class Student(User):
 
     @property
     def more(self):
-        self.studentmore
+        return self.studentmore
     
     class Meta:
         proxy = True
@@ -397,7 +397,8 @@ def post_save_user_types_handler(sender, instance, created, *args, **kwargs):
                 _ = TeacherMore.objects.create(user=instance)
             if User.TypesChoices.STUDENT in instance.types:
                 # create StudentMore
-                _ = StudentMore.objects.create(user=instance)
+                st = StudentMore.objects.create(user=instance)
+                print(f"create StudentMore st={st}, {instance.types}")
             if User.TypesChoices.GUARDIAN in instance.types:
                 # create GuardianMore
                 _ = GuardianMore.objects.create(user=instance)
